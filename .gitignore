@@ -1,2 +1,23 @@
 
 *.vsidx
+/x64/Debug/archive.dll
+/x64/Debug/bz2d.dll
+/x64/Debug/gif.dll
+/x64/Debug/jpeg62.dll
+/x64/Debug/leptonica-1.85.0d.dll
+/x64/Debug/libcrypto-3-x64.dll
+/x64/Debug/libcurl-d.dll
+/x64/Debug/liblzma.dll
+/x64/Debug/libpng16d.dll
+/x64/Debug/libsharpyuv.dll
+/x64/Debug/libwebp.dll
+/x64/Debug/libwebpmux.dll
+/x64/Debug/lz4d.dll
+/x64/Debug/openjp2.dll
+/x64/Debug/tesseract55d.dll
+/x64/Debug/tiffd.dll
+/x64/Debug/vc143.idb
+/x64/Debug/vc143.pdb
+/x64/Debug/vcpkg.applocal.log
+/x64/Debug/zlibd1.dll
+/x64/Debug/zstd.dll
