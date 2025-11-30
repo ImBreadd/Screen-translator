@@ -1,8 +1,8 @@
 #include <SFML/Graphics.hpp>
-#include <SFML/Window.hpp>
-#include <SFML/System.hpp>
 #include <windows.h>
-
+#include <tesseract/baseapi.h>
+#include <leptonica/allheaders.h>
+#include <iostream>
 
 HDC initializeMemoryDC(HDC hdcScreen, HBITMAP& hBitmap, int width, int height) {
     HDC hdcMemory = CreateCompatibleDC(hdcScreen);
@@ -11,69 +11,73 @@ HDC initializeMemoryDC(HDC hdcScreen, HBITMAP& hBitmap, int width, int height) {
     return hdcMemory;
 }
 
-
-sf::Texture captureScreen(HDC hdcScreen, HDC hdcMemory, HBITMAP hBitmap, int screenWidth, int screenHeight) {
-    // Copy screen to bitmap
+sf::Image captureScreenImage(HDC hdcScreen, HDC hdcMemory, HBITMAP hBitmap,
+    int screenWidth, int screenHeight) {
     BitBlt(hdcMemory, 0, 0, screenWidth, screenHeight, hdcScreen, 0, 0, SRCCOPY);
 
-    sf::Uint8* buffer = new sf::Uint8[screenWidth * screenHeight * 4];  // 4 bytes per pixel (RGBA)
-
+    sf::Uint8* buffer = new sf::Uint8[screenWidth * screenHeight * 4];
     BITMAPINFOHEADER bi = { sizeof(BITMAPINFOHEADER), screenWidth, -screenHeight, 1, 32, BI_RGB };
     GetDIBits(hdcMemory, hBitmap, 0, screenHeight, buffer, (BITMAPINFO*)&bi, DIB_RGB_COLORS);
 
     sf::Image screenshot;
     screenshot.create(screenWidth, screenHeight, buffer);
     delete[] buffer;
-
-    sf::Texture texture;
-
-    texture.loadFromImage(screenshot);
-    return texture;
+    return screenshot;
 }
 
-// Memory management
 void releaseGDIResources(HDC hdcScreen, HDC hdcMemory, HBITMAP hBitmap) {
     DeleteObject(hBitmap);
     DeleteDC(hdcMemory);
     ReleaseDC(GetDesktopWindow(), hdcScreen);
 }
 
-//Main loop
+// Convert SFML image to Leptonica Pix
+Pix* sfImageToPix(const sf::Image& img) {
+    unsigned w = img.getSize().x;
+    unsigned h = img.getSize().y;
+    Pix* pix = pixCreate(w, h, 32);
+    for (unsigned y = 0; y < h; ++y) {
+        for (unsigned x = 0; x < w; ++x) {
+            sf::Color c = img.getPixel(x, y);
+            pixSetRGBPixel(pix, x, y, c.r, c.g, c.b);
+        }
+    }
+    return pix;
+}
+
 void runScreenCaptureLoop() {
-    sf::RenderWindow window(sf::VideoMode(600, 600), "Screen Capture");
-
-    sf::Clock clock;
-    const float targetFrameRate = 1.0f / 10.0f;
-
     HWND hwndDesktop = GetDesktopWindow();
     HDC hdcScreen = GetDC(hwndDesktop);
     int screenWidth = GetSystemMetrics(SM_CXSCREEN);
     int screenHeight = GetSystemMetrics(SM_CYSCREEN);
 
-
     HBITMAP hBitmap;
     HDC hdcMemory = initializeMemoryDC(hdcScreen, hBitmap, screenWidth, screenHeight);
 
-    sf::Sprite screenSprite;
+    sf::Clock clock;
+    const float targetFrameRate = 1.0f / 5.0f; // 5 FPS
 
-    while (window.isOpen()) {
-        sf::Event event;
-        while (window.pollEvent(event)) {
-            if (event.type == sf::Event::Closed) {
-                window.close();
-            }
-        }
-
-        // Limit the frame rate to 10 FPS
+    while (true) {
         if (clock.getElapsedTime().asSeconds() >= targetFrameRate) {
-            sf::Texture screenTexture = captureScreen(hdcScreen, hdcMemory, hBitmap, screenWidth, screenHeight);
-            screenSprite.setTexture(screenTexture);
-            window.clear();
-            window.draw(screenSprite);
-            window.display();
+            sf::Image screenshot = captureScreenImage(hdcScreen, hdcMemory, hBitmap,
+                screenWidth, screenHeight);
+
+            // Run OCR
+            Pix* pix = sfImageToPix(screenshot);
+            tesseract::TessBaseAPI ocr;
+            ocr.Init(NULL, "eng"); // load English traineddata
+            ocr.SetImage(pix);
+            char* outText = ocr.GetUTF8Text();
+            std::cout << "OCR Output:\n" << outText << std::endl;
+
+            delete[] outText;
+            pixDestroy(&pix);
+            ocr.End();
+
             clock.restart();
         }
     }
+
     releaseGDIResources(hdcScreen, hdcMemory, hBitmap);
 }
 
